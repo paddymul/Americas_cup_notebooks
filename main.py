@@ -6,10 +6,9 @@ import numpy as np
 
 from bokeh.io import curdoc
 from bokeh.layouts import row, column
-from bokeh.models import ColumnDataSource, DataRange1d, Select
+from bokeh.models import ColumnDataSource, DataRange1d, Select, Slider
 from bokeh.palettes import Blues4
 from bokeh.plotting import figure
-
 
 
 def make_boat_tacks(df, boat_name):
@@ -109,10 +108,14 @@ current_boat = 'JPN'
 BOAT_NAMES = ['FRA', 'USA', 'JPN', 'SWE', 'GBR', 'NZL']
 boat_select = Select(value=current_boat, title='Boat', options=BOAT_NAMES)
 
+
+tack_slider = Slider(start=1, end=10, value=1, step=1,
+                    title="Tack Num")
+
 def update_plot(attrname, old, new):
     boat_name = boat_select.value
-
-    src = get_boat_cds(boat_name, 3)
+    tack_num = tack_slider.value
+    src = get_boat_cds(boat_name, tack_num)
     global_source.data.update(src.data)
 
 
@@ -121,9 +124,10 @@ full_df = pd.read_hdf('race1.hd5')
 global_source = get_boat_cds('USA', 5)
 plot = make_plot(global_source)
 boat_select.on_change('value', update_plot)
+tack_slider.on_change('value', update_plot)
                       
 
-controls = column(boat_select)
+controls = column(boat_select, tack_slider)
 
 curdoc().add_root(row(plot, controls))
-curdoc().title = "Weather"
+curdoc().title = "America's Cup tack analysis"
