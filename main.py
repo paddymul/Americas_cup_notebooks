@@ -6,7 +6,7 @@ import numpy as np
 
 from bokeh.io import curdoc
 from bokeh.layouts import row, column
-from bokeh.models import ColumnDataSource, DataRange1d, Select, Slider
+from bokeh.models import ColumnDataSource, DataRange1d, Select, Slider, Range1d
 from bokeh.palettes import Blues4
 from bokeh.plotting import figure
 
@@ -29,42 +29,61 @@ def make_boat_tacks(df, boat_name):
     gybes = df2[df2['GYB_DIFF360'] <1].index.values
     return df2, tacks, gybes
 
+def make_plot(cds):
+    boat_plot_opts = dict(plot_width=350, plot_height=350, min_border=0)
+    x_range = Range1d(df2.index.min(), df2.index.max())
+    x_range.start = t_start
+    x_range.end = t_end
+    #x_range.bounds = [0, 50]
 
-def update_plot(tack_num, boat_name):
-    df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
-    tstamp = tacks[tack_num]
-    
-    t_idx = df2.index.get_loc(tstamp)
-    window_width = 100
-    start, end = t_idx - window_width, t_idx + window_width
-    start = np.max(start,0)
-    df3 = df2.ix[start:end]
-    idx_range = np.arange(window_width*2)
-    df3.index = idx_range
-    #fig = plt.figure(figsize=(8,5))
-    #ax = fig.add_axes([0,0,1,1], polar=True)
-    #COG_h, = ax.plot(df3.COG * (np.pi/180), idx_range, label='Boat Heading')
-    #cwd_h, = ax.plot(df3.CWD * (np.pi/180), idx_range, color='green', label='CourseWindDirection')
-    #cwd_180_h, = ax.plot((df3.CWD - 180) * (np.pi/180), idx_range, color='red', label='CourseWindDirection - 180')
-    fig, ax = plt.subplots(ncols=3, figsize=(24,8))
-    ax1, ax2, ax3 = ax
-    
-    #df3.CB_CWD.plot(title="%d" % tstamp, ax=ax1)
-    #df3.CW_COG.plot(color='green', ax=ax1)
-    #df3.WC_DIFF.plot(color='red', ax=ax1)
+    p1 = figure(title='Speed and Heel', x_range=x_range, **boat_plot_opts)
+    p2 = figure(title='Zoomed in COG', **boat_plot_opts)
+    #p3 = figure(title='Full Race course', **boat_plot_opts)
 
-    df3.SOG.plot(legend="SOG", ax=ax1)
-    df3.Heel.plot(legend="Heel", ax=ax1)
+    p1.line(x='IDX_COL', y='SOG', source=cds, legend='Speed')
+    p1.line(x='IDX_COL', y='Heel', source=cds, legend='Heel', color='green')
+    p2.line(x='Lon', y='Lat', source=cds)
     
-    ax2.plot(df3.Lon, df3.Lat )
-    ax2.set_title("Tack Zoomed in")
-    
-    ax3.plot(df2.Lon, df2.Lat, color='blue')# legend="Full Course", title="Full Race COG")
-    ax3.plot(df3.Lon, df3.Lat, color='red', linewidth=3.0) # legend="Tack Course", linewidth=3.0)
+    # p3.line(df2.Lon, df2.Lat, color='blue', line_alpha=.1)
+    # p3.line(df3.Lon, df3.Lat, line_width=1, color='red')
 
-    ax3.set_title( "Full Race Cog")
+    row_fig = row(p1, p2)
+    #row_fig = row(p1, p2, p3))
+    #t = show(row_fig)
+    return row_fig
+
+
+
+current_boat = 'JPN'
+BOAT_NAMES = ['FRA', 'USA', 'JPN', 'SWE', 'GBR', 'NZL']
+
+def make_plots(cds, tack_im): #, full_race_cds):
+    """cds is only used for the zoomed in portion of the map,
+    full_race_cds is used for p1 and p3
+    """
+    boat_plot_opts = dict(plot_width=350, plot_height=350, min_border=0)
+    min_, max_ = tack_im.get_tstamps(0)
+    x_range = Range1d(min_, max_)
+    # x_range.start = t_start
+    # x_range.end = t_end
+    #x_range.bounds = [0, 50]
+
+    p1 = figure(title='Speed and Heel', x_range=x_range, **boat_plot_opts)
+    p2 = figure(title='Zoomed in COG', **boat_plot_opts)
+    #p3 = figure(title='Full Race course', **boat_plot_opts)
+
+    p1.line(x='time_col', y='SOG', source=cds, legend='Speed')
+    p1.line(x='time_col', y='Heel', source=cds, legend='Heel', color='green')
+    #p2.line(x='Lon', y='Lat', source=cds)
     
-    plt.figure()
+    # p3.line(df2.Lon, df2.Lat, color='blue', line_alpha=.1)
+    # p3.line(df3.Lon, df3.Lat, line_width=1, color='red')
+
+    #row_fig = row(p1, p2)
+    #row_fig = row(p1, p2, p3))
+    #return x_range, row_fig
+    return x_range, p1
+
 
 def get_boat_cds(boat_name, tack_num):
     df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
@@ -82,30 +101,41 @@ def get_boat_cds(boat_name, tack_num):
     cds2 = ColumnDataSource(data=df3)
     return cds2
 
-
-
-
-def make_plot(cds):
-    boat_plot_opts = dict(plot_width=350, plot_height=350, min_border=0)
-    p1 = figure(title='Speed and Heel', **boat_plot_opts)
-    p2 = figure(title='Zoomed in COG', **boat_plot_opts)
-    #p3 = figure(title='Full Race course', **boat_plot_opts)
-
-    p1.line(x='IDX_COL', y='SOG', source=cds, legend='Speed')
-    p1.line(x='IDX_COL', y='Heel', source=cds, legend='Heel', color='green')
-    p2.line(x='Lon', y='Lat', source=cds)
+class IntervalManager(object):
+    def __init__(self, event_list, orig_index):
+        self.event_list = event_list
+        self.orig_index = orig_index
     
-    # p3.line(df2.Lon, df2.Lat, color='blue', line_alpha=.1)
-    # p3.line(df3.Lon, df3.Lat, line_width=1, color='red')
+    def __len__(self):
+        return len(self.event_list)
+    
+    def get_tstamps(self, idx, window_size=150):
+        t_idx = self.orig_index.get_loc(self.event_list[idx])
+        start, end = t_idx - window_size, t_idx + window_size
+        start = np.max([start, 0])
+        orig_index_len = len(self.orig_index)
+        end = np.min( [orig_index_len - 1, end])
+        start_tstamp = self.orig_index[start]
+        end_tstamp = self.orig_index[end]
+        return start_tstamp, end_tstamp
 
-    row_fig = row(p1, p2)
-    #row_fig = row(p1, p2, p3))
-    #t = show(row_fig)
-    return row_fig
+global_tack_im = None
+def update_boat(boat_name):
+    global global_tack_im
+    df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
+    df2['time_col'] = df2.index.values
+    full_cds = ColumnDataSource(data=df2)
+    global_tack_im = IntervalManager(tacks, df2.index)
+    return full_cds, global_tack_im
 
+def update_ranges(tack_num, tack_im, x_range):
+    start, end = tack_im.get_tstamps(tack_num)
 
-current_boat = 'JPN'
-BOAT_NAMES = ['FRA', 'USA', 'JPN', 'SWE', 'GBR', 'NZL']
+    print "update_ranges", tack_num
+    x_range.start = start
+    x_range.end = end
+    
+
 boat_select = Select(value=current_boat, title='Boat', options=BOAT_NAMES)
 
 
@@ -115,16 +145,26 @@ tack_slider = Slider(start=1, end=10, value=1, step=1,
 def update_plot(attrname, old, new):
     boat_name = boat_select.value
     tack_num = tack_slider.value
-    src = get_boat_cds(boat_name, tack_num)
+    #src = get_boat_cds(boat_name, tack_num)
+    src, tack_im = update_boat(boat_name)
+    print "update_plot boat_name", boat_name
     global_source.data.update(src.data)
 
+def update_tack_slider(attrname, old, new):
+    tack_num = tack_slider.value
+    update_ranges(tack_num, global_tack_im, global_x_range)
+    
 
 
 full_df = pd.read_hdf('race1.hd5')
-global_source = get_boat_cds('USA', 5)
-plot = make_plot(global_source)
+global_source, global_tack_im = update_boat('USA')
+
+global_x_range, plot = make_plots(global_source, global_tack_im)
+update_ranges(3, global_tack_im, global_x_range)
+
 boat_select.on_change('value', update_plot)
-tack_slider.on_change('value', update_plot)
+tack_slider.on_change('value', update_tack_slider)
+
                       
 
 controls = column(boat_select, tack_slider)
