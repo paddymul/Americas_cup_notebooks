@@ -29,28 +29,6 @@ def make_boat_tacks(df, boat_name):
     gybes = df2[df2['GYB_DIFF360'] <1].index.values
     return df2, tacks, gybes
 
-def make_plot(cds):
-    boat_plot_opts = dict(plot_width=350, plot_height=350, min_border=0)
-    x_range = Range1d(df2.index.min(), df2.index.max())
-    x_range.start = t_start
-    x_range.end = t_end
-    #x_range.bounds = [0, 50]
-
-    p1 = figure(title='Speed and Heel', x_range=x_range, **boat_plot_opts)
-    p2 = figure(title='Zoomed in COG', **boat_plot_opts)
-    #p3 = figure(title='Full Race course', **boat_plot_opts)
-
-    p1.line(x='IDX_COL', y='SOG', source=cds, legend='Speed')
-    p1.line(x='IDX_COL', y='Heel', source=cds, legend='Heel', color='green')
-    p2.line(x='Lon', y='Lat', source=cds)
-    
-    # p3.line(df2.Lon, df2.Lat, color='blue', line_alpha=.1)
-    # p3.line(df3.Lon, df3.Lat, line_width=1, color='red')
-
-    row_fig = row(p1, p2)
-    #row_fig = row(p1, p2, p3))
-    #t = show(row_fig)
-    return row_fig
 
 
 
@@ -143,6 +121,7 @@ tack_slider = Slider(start=1, end=10, value=1, step=1,
                     title="Tack Num")
 
 def update_plot(attrname, old, new):
+    global global_source
     boat_name = boat_select.value
     tack_num = tack_slider.value
     #src = get_boat_cds(boat_name, tack_num)
@@ -151,6 +130,7 @@ def update_plot(attrname, old, new):
     global_source.data.update(src.data)
 
 def update_tack_slider(attrname, old, new):
+    global global_tack_im
     tack_num = tack_slider.value
     update_ranges(tack_num, global_tack_im, global_x_range)
     
