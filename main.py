@@ -65,7 +65,7 @@ def make_plots(cds, zoom_cds, tack_im): #, full_race_cds):
     """cds is only used for the zoomed in portion of the map,
     full_race_cds is used for p1 and p3
     """
-    boat_plot_opts = dict(plot_width=350, plot_height=350, min_border=0)
+    boat_plot_opts = dict(tools="", plot_width=375, plot_height=375, min_border=0)
     min_, max_ = tack_im.get_tstamps(0)
     x_range = Range1d(min_, max_)
 
@@ -109,6 +109,12 @@ class IntervalManager(object):
         end_tstamp = self.orig_index[end]
         return start_tstamp, end_tstamp
 
+    def pad(self, min_, max_):
+        lat_padding = np.abs((max_ - min_) * 0.02)
+        min_ -= lat_padding
+        max_ += lat_padding
+        return min_, max_
+
     @profile
     def get_lat_long_extents(self, idx):
         t_idx = self.orig_index.get_loc(self.event_list[idx])
@@ -119,7 +125,9 @@ class IntervalManager(object):
         lat = self.orig_df.Lat[start:end]
         lon = self.orig_df.Lon[start:end]
         lat_min, lat_max = lat.min(), lat.max()
+        lat_min, lat_max = self.pad(lat_min, lat_max)
         lon_min, lon_max = lon.min(), lon.max()
+        lon_min, lon_max = self.pad(lon_min, lon_max)
         return (lat_min, lat_max, lon_min, lon_max)
 
     @profile
@@ -143,7 +151,7 @@ def update_boat(boat_name):
     df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
     df2['time_col'] = df2.index.values
     full_cds = ColumnDataSource(data=df2)
-    global_tack_im = IntervalManager(gybes, df2)
+    global_tack_im = IntervalManager(tacks, df2)
     zoom_cds = global_tack_im.get_lat_lon_cds(0)
     return full_cds, zoom_cds, global_tack_im
 
@@ -172,6 +180,10 @@ def update_plot(attrname, old, new):
     src, zsrc, tack_im = update_boat(boat_name)
     global_source.data.update(src.data)
     zoom_source.data.update(zsrc.data)
+    tack_num = tack_slider.value
+    update_ranges(tack_num, global_tack_im, global_x_range,
+                  global_lat_range, global_lon_range, zoom_source)
+    
 
 @cb_profile
 def update_tack_slider(attrname, old, new):
@@ -193,7 +205,7 @@ tack_slider.on_change('value', update_tack_slider)
 
                       
 
-controls = column(boat_select, tack_slider)
+controls = row(boat_select, tack_slider)
 
-curdoc().add_root(row(plot, controls))
+curdoc().add_root(column(controls, plot))
 curdoc().title = "America's Cup tack analysis"
