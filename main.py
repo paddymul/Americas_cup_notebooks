@@ -9,8 +9,27 @@ from bokeh.layouts import row, column
 from bokeh.models import ColumnDataSource, DataRange1d, Select, Slider, Range1d
 from bokeh.palettes import Blues4
 from bokeh.plotting import figure
+from datetime import datetime as dtdt
 
+def profile(f):
+    def ret_f(*args, **kwargs):
+        t_start = dtdt.now()
+        ret_val = f(*args, **kwargs)
+        t_end = dtdt.now()
+        print t_end - t_start, f.__name__
+        return ret_val
+    return ret_f
 
+def cb_profile(f):
+    def ret_f(attr, old, new):
+        t_start = dtdt.now()
+        ret_val = f(attr, old, new)
+        t_end = dtdt.now()
+        print t_end - t_start, f.__name__
+        return ret_val
+    return ret_f
+
+@profile
 def make_boat_tacks(df, boat_name):
     df2 = df[boat_name].copy()
 
@@ -27,7 +46,13 @@ def make_boat_tacks(df, boat_name):
     tacks = df2[df2['WC_DIFF360'] <1].index.values
     #print tacks
     gybes = df2[df2['GYB_DIFF360'] <1].index.values
-    return df2, tacks, gybes
+
+    df3 = pd.DataFrame(
+        {
+            'Lat':df2.Lat, 'Lon':df2.Lon,
+            'SOG':df2.SOG, 'Heel':df2.Heel})
+    
+    return df3, tacks, gybes
 
 
 
@@ -35,6 +60,7 @@ def make_boat_tacks(df, boat_name):
 current_boat = 'JPN'
 BOAT_NAMES = ['FRA', 'USA', 'JPN', 'SWE', 'GBR', 'NZL']
 
+@profile
 def make_plots(cds, tack_im): #, full_race_cds):
     """cds is only used for the zoomed in portion of the map,
     full_race_cds is used for p1 and p3
@@ -62,7 +88,7 @@ def make_plots(cds, tack_im): #, full_race_cds):
     #return x_range, row_fig
     return x_range, p1
 
-
+@profile
 def get_boat_cds(boat_name, tack_num):
     df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
     tstamp = tacks[tack_num]
@@ -79,6 +105,7 @@ def get_boat_cds(boat_name, tack_num):
     cds2 = ColumnDataSource(data=df3)
     return cds2
 
+
 class IntervalManager(object):
     def __init__(self, event_list, orig_index):
         self.event_list = event_list
@@ -86,7 +113,8 @@ class IntervalManager(object):
     
     def __len__(self):
         return len(self.event_list)
-    
+
+    @profile
     def get_tstamps(self, idx, window_size=150):
         t_idx = self.orig_index.get_loc(self.event_list[idx])
         start, end = t_idx - window_size, t_idx + window_size
@@ -98,18 +126,19 @@ class IntervalManager(object):
         return start_tstamp, end_tstamp
 
 global_tack_im = None
+@profile
 def update_boat(boat_name):
     global global_tack_im
     df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
+
     df2['time_col'] = df2.index.values
     full_cds = ColumnDataSource(data=df2)
     global_tack_im = IntervalManager(tacks, df2.index)
     return full_cds, global_tack_im
 
+@profile
 def update_ranges(tack_num, tack_im, x_range):
     start, end = tack_im.get_tstamps(tack_num)
-
-    print "update_ranges", tack_num
     x_range.start = start
     x_range.end = end
     
@@ -119,16 +148,16 @@ boat_select = Select(value=current_boat, title='Boat', options=BOAT_NAMES)
 
 tack_slider = Slider(start=1, end=10, value=1, step=1,
                     title="Tack Num")
-
+@cb_profile
 def update_plot(attrname, old, new):
     global global_source
     boat_name = boat_select.value
     tack_num = tack_slider.value
     #src = get_boat_cds(boat_name, tack_num)
     src, tack_im = update_boat(boat_name)
-    print "update_plot boat_name", boat_name
     global_source.data.update(src.data)
 
+@cb_profile
 def update_tack_slider(attrname, old, new):
     global global_tack_im
     tack_num = tack_slider.value
