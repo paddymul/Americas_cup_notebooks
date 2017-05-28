@@ -61,7 +61,7 @@ current_boat = 'JPN'
 BOAT_NAMES = ['FRA', 'USA', 'JPN', 'SWE', 'GBR', 'NZL']
 
 @profile
-def make_plots(cds, tack_im): #, full_race_cds):
+def make_plots(cds, zoom_cds, tack_im): #, full_race_cds):
     """cds is only used for the zoomed in portion of the map,
     full_race_cds is used for p1 and p3
     """
@@ -80,9 +80,10 @@ def make_plots(cds, tack_im): #, full_race_cds):
 
     p1.line(x='time_col', y='SOG', source=cds, legend='Speed')
     p1.line(x='time_col', y='Heel', source=cds, legend='Heel', color='green')
-    p2.line(x='Lon', y='Lat', source=cds)
+    p2.line(x='zoomed_Lon', y='zoomed_Lat', source=zoom_cds, color='red')
     
     p3.line(x='Lon', y='Lat', source=cds, color='blue', line_alpha=.1)
+    p3.line(x='zoomed_Lon', y='zoomed_Lat', source=zoom_cds, color='red')
     row_fig = row(p1, p2, p3)
     return x_range, lat_range, lon_range, row_fig
 
@@ -119,8 +120,20 @@ class IntervalManager(object):
         lon = self.orig_df.Lon[start:end]
         lat_min, lat_max = lat.min(), lat.max()
         lon_min, lon_max = lon.min(), lon.max()
-
         return (lat_min, lat_max, lon_min, lon_max)
+
+    @profile
+    def get_lat_lon_cds(self, idx):
+        t_idx = self.orig_index.get_loc(self.event_list[idx])
+        start, end = t_idx - self.window_size, t_idx + self.window_size
+        start = np.max([start, 0])
+        orig_index_len = len(self.orig_index)
+        end = np.min( [orig_index_len - 1, end])
+        lat = self.orig_df.Lat[start:end]
+        lon = self.orig_df.Lon[start:end]
+        df2 = pd.DataFrame({'zoomed_Lat':lat, 'zoomed_Lon':lon})
+        ll_cds = ColumnDataSource(data=df2)
+        return ll_cds
 
 
 global_tack_im = None
@@ -130,11 +143,12 @@ def update_boat(boat_name):
     df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
     df2['time_col'] = df2.index.values
     full_cds = ColumnDataSource(data=df2)
-    global_tack_im = IntervalManager(tacks, df2)
-    return full_cds, global_tack_im
+    global_tack_im = IntervalManager(gybes, df2)
+    zoom_cds = global_tack_im.get_lat_lon_cds(0)
+    return full_cds, zoom_cds, global_tack_im
 
 @profile
-def update_ranges(tack_num, tack_im, x_range, lat_range, lon_range):
+def update_ranges(tack_num, tack_im, x_range, lat_range, lon_range, source):
     start, end = tack_im.get_tstamps(tack_num)
     x_range.start = start
     x_range.end = end
@@ -144,31 +158,35 @@ def update_ranges(tack_num, tack_im, x_range, lat_range, lon_range):
     lon_range.start = lon_min
     lon_range.end = lon_max
 
+    ll_cds = tack_im.get_lat_lon_cds(tack_num)
+    source.data.update(ll_cds.data)
+
 boat_select = Select(value=current_boat, title='Boat', options=BOAT_NAMES)
 tack_slider = Slider(start=1, end=10, value=1, step=1,
                     title="Tack Num")
 @cb_profile
 def update_plot(attrname, old, new):
-    global global_source
+    global global_source, zoom_source
     boat_name = boat_select.value
     tack_num = tack_slider.value
-    src, tack_im = update_boat(boat_name)
+    src, zsrc, tack_im = update_boat(boat_name)
     global_source.data.update(src.data)
+    zoom_source.data.update(zsrc.data)
 
 @cb_profile
 def update_tack_slider(attrname, old, new):
     global global_tack_im
     tack_num = tack_slider.value
     update_ranges(tack_num, global_tack_im, global_x_range,
-                  global_lat_range, global_lon_range)
+                  global_lat_range, global_lon_range, zoom_source)
     
 
 
 full_df = pd.read_hdf('race1.hd5')
-global_source, global_tack_im = update_boat('USA')
+global_source, zoom_source, global_tack_im = update_boat('USA')
 
-global_x_range, global_lat_range, global_lon_range,  plot = make_plots(global_source, global_tack_im)
-update_ranges(3, global_tack_im, global_x_range, global_lat_range, global_lon_range)
+global_x_range, global_lat_range, global_lon_range,  plot = make_plots(global_source, zoom_source,  global_tack_im)
+update_ranges(3, global_tack_im, global_x_range, global_lat_range, global_lon_range, zoom_source)
 
 boat_select.on_change('value', update_plot)
 tack_slider.on_change('value', update_tack_slider)
