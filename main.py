@@ -68,45 +68,60 @@ def make_plots(cds, tack_im): #, full_race_cds):
     boat_plot_opts = dict(plot_width=350, plot_height=350, min_border=0)
     min_, max_ = tack_im.get_tstamps(0)
     x_range = Range1d(min_, max_)
-    # x_range.start = t_start
-    # x_range.end = t_end
-    #x_range.bounds = [0, 50]
+
+    lat_min, lat_max, lon_min, lon_max = tack_im.get_lat_long_extents(0)
+    lat_range = Range1d(lat_min, lat_max)
+    lon_range = Range1d(lon_min, lon_max)
 
     p1 = figure(title='Speed and Heel', x_range=x_range, **boat_plot_opts)
-    p2 = figure(title='Zoomed in COG', **boat_plot_opts)
-    #p3 = figure(title='Full Race course', **boat_plot_opts)
+    p2 = figure(title='Zoomed in COG', x_range=lon_range, y_range=lat_range,
+                **boat_plot_opts)
+    p3 = figure(title='Full Race course', **boat_plot_opts)
 
     p1.line(x='time_col', y='SOG', source=cds, legend='Speed')
     p1.line(x='time_col', y='Heel', source=cds, legend='Heel', color='green')
     p2.line(x='Lon', y='Lat', source=cds)
     
-    # p3.line(df2.Lon, df2.Lat, color='blue', line_alpha=.1)
-    # p3.line(df3.Lon, df3.Lat, line_width=1, color='red')
-
-    row_fig = row(p1, p2)
-    #row_fig = row(p1, p2, p3))
-    return x_range, row_fig
-    #return x_range, p1
+    p3.line(x='Lon', y='Lat', source=cds, color='blue', line_alpha=.1)
+    row_fig = row(p1, p2, p3)
+    return x_range, lat_range, lon_range, row_fig
 
 @profile
 class IntervalManager(object):
-    def __init__(self, event_list, orig_index):
+    def __init__(self, event_list, orig_df, window_size=150):
         self.event_list = event_list
-        self.orig_index = orig_index
+        self.orig_df = orig_df
+        self.orig_index = orig_df.index
+        self.window_size = window_size
     
     def __len__(self):
         return len(self.event_list)
 
     @profile
-    def get_tstamps(self, idx, window_size=150):
+    def get_tstamps(self, idx):
         t_idx = self.orig_index.get_loc(self.event_list[idx])
-        start, end = t_idx - window_size, t_idx + window_size
+        start, end = t_idx - self.window_size, t_idx + self.window_size
         start = np.max([start, 0])
         orig_index_len = len(self.orig_index)
         end = np.min( [orig_index_len - 1, end])
         start_tstamp = self.orig_index[start]
         end_tstamp = self.orig_index[end]
         return start_tstamp, end_tstamp
+
+    @profile
+    def get_lat_long_extents(self, idx):
+        t_idx = self.orig_index.get_loc(self.event_list[idx])
+        start, end = t_idx - self.window_size, t_idx + self.window_size
+        start = np.max([start, 0])
+        orig_index_len = len(self.orig_index)
+        end = np.min( [orig_index_len - 1, end])
+        lat = self.orig_df.Lat[start:end]
+        lon = self.orig_df.Lon[start:end]
+        lat_min, lat_max = lat.min(), lat.max()
+        lon_min, lon_max = lon.min(), lon.max()
+
+        return (lat_min, lat_max, lon_min, lon_max)
+
 
 global_tack_im = None
 @profile
@@ -115,19 +130,21 @@ def update_boat(boat_name):
     df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
     df2['time_col'] = df2.index.values
     full_cds = ColumnDataSource(data=df2)
-    global_tack_im = IntervalManager(tacks, df2.index)
+    global_tack_im = IntervalManager(tacks, df2)
     return full_cds, global_tack_im
 
 @profile
-def update_ranges(tack_num, tack_im, x_range):
+def update_ranges(tack_num, tack_im, x_range, lat_range, lon_range):
     start, end = tack_im.get_tstamps(tack_num)
     x_range.start = start
     x_range.end = end
-    
+    lat_min, lat_max, lon_min, lon_max = tack_im.get_lat_long_extents(tack_num)
+    lat_range.start = lat_min
+    lat_range.end = lat_max
+    lon_range.start = lon_min
+    lon_range.end = lon_max
 
 boat_select = Select(value=current_boat, title='Boat', options=BOAT_NAMES)
-
-
 tack_slider = Slider(start=1, end=10, value=1, step=1,
                     title="Tack Num")
 @cb_profile
@@ -142,15 +159,16 @@ def update_plot(attrname, old, new):
 def update_tack_slider(attrname, old, new):
     global global_tack_im
     tack_num = tack_slider.value
-    update_ranges(tack_num, global_tack_im, global_x_range)
+    update_ranges(tack_num, global_tack_im, global_x_range,
+                  global_lat_range, global_lon_range)
     
 
 
 full_df = pd.read_hdf('race1.hd5')
 global_source, global_tack_im = update_boat('USA')
 
-global_x_range, plot = make_plots(global_source, global_tack_im)
-update_ranges(3, global_tack_im, global_x_range)
+global_x_range, global_lat_range, global_lon_range,  plot = make_plots(global_source, global_tack_im)
+update_ranges(3, global_tack_im, global_x_range, global_lat_range, global_lon_range)
 
 boat_select.on_change('value', update_plot)
 tack_slider.on_change('value', update_tack_slider)
