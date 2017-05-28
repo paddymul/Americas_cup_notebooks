@@ -78,34 +78,17 @@ def make_plots(cds, tack_im): #, full_race_cds):
 
     p1.line(x='time_col', y='SOG', source=cds, legend='Speed')
     p1.line(x='time_col', y='Heel', source=cds, legend='Heel', color='green')
-    #p2.line(x='Lon', y='Lat', source=cds)
+    p2.line(x='Lon', y='Lat', source=cds)
     
     # p3.line(df2.Lon, df2.Lat, color='blue', line_alpha=.1)
     # p3.line(df3.Lon, df3.Lat, line_width=1, color='red')
 
-    #row_fig = row(p1, p2)
+    row_fig = row(p1, p2)
     #row_fig = row(p1, p2, p3))
-    #return x_range, row_fig
-    return x_range, p1
+    return x_range, row_fig
+    #return x_range, p1
 
 @profile
-def get_boat_cds(boat_name, tack_num):
-    df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
-    tstamp = tacks[tack_num]
-    
-    t_idx = df2.index.get_loc(tstamp)
-    window_width = 250
-    start, end = t_idx - window_width, t_idx + window_width
-    start = np.max(start,0)
-    df3 = df2.ix[start:end]
-    idx_range = np.arange(window_width*2)
-    df3.index = idx_range
-    #df3['IDX_COL'] = df3.index.values
-    df3.loc[df3.index, 'IDX_COL'] = df3.index.values
-    cds2 = ColumnDataSource(data=df3)
-    return cds2
-
-
 class IntervalManager(object):
     def __init__(self, event_list, orig_index):
         self.event_list = event_list
@@ -130,7 +113,6 @@ global_tack_im = None
 def update_boat(boat_name):
     global global_tack_im
     df2, tacks, gybes = make_boat_tacks(full_df, boat_name)
-
     df2['time_col'] = df2.index.values
     full_cds = ColumnDataSource(data=df2)
     global_tack_im = IntervalManager(tacks, df2.index)
@@ -153,7 +135,6 @@ def update_plot(attrname, old, new):
     global global_source
     boat_name = boat_select.value
     tack_num = tack_slider.value
-    #src = get_boat_cds(boat_name, tack_num)
     src, tack_im = update_boat(boat_name)
     global_source.data.update(src.data)
 
